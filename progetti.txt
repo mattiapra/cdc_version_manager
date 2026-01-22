@@ -1,0 +1,8 @@
+git@gitlab.aws.tagetik.com:tagetik/platform/platform-charts-kustomizations/cdc/data-replication-adapter-kustomization.git
+git@gitlab.aws.tagetik.com:tagetik/platform/platform-charts-kustomizations/cdc/tgk-qlik-replicate-kustomization.git
+git@gitlab.aws.tagetik.com:tagetik/platform/platform-charts-kustomizations/cdc/tgk-qlik-replicate-operator-kustomization.git
+git@gitlab.aws.tagetik.com:tagetik/platform/platform-charts-kustomizations/cdc/tgk-qlik-replicate-crd-kustomization.git
+git@gitlab.aws.tagetik.com:tagetik/functional-area/cdc/cdc-main/cdc-main-config-dev.git
+git@gitlab.aws.tagetik.com:tagetik/functional-area/cdc/cdc-main/cdc-main-config-prod.git
+git@gitlab.aws.tagetik.com:tagetik/functional-area/cdc/cdc-monitoring/cdc-monitoring-config-dev.git
+git@gitlab.aws.tagetik.com:tagetik/functional-area/cdc/cdc-monitoring/cdc-monitoring-config-prod.git

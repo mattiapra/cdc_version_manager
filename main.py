@@ -155,7 +155,7 @@ if sel_proj and sel_env:
                 if proj_type == "Terraform":
                     tf_path = row['FilePath']
                     content = get_file_content(tf_path)
-                    res_tf = code_editor(content, lang="hcl", height="400px", theme="default",
+                    res_tf = code_editor(content, lang="terraform", height="400px", theme="default",
                                        buttons=custom_buttons, props=editor_props, options=editor_options,
                                        key=f"ed_tf_{sel_proj}_{sel_env}_{idx}")
                     if res_tf['type'] == "submit" and res_tf['text']:

@@ -7,7 +7,6 @@ yaml = YAML()
 yaml.preserve_quotes = True
 yaml.indent(mapping=2, sequence=4, offset=2)
 
-# --- FUNZIONI ESISTENTI (Parsing Kustomize) ---
 def read_kustomize_values(root_dir, project, env):
     base_path = os.path.join(root_dir, f"{project}-kustomization", env)
     overlay_path = os.path.join(base_path, "overlays", "kustomization.yaml")
@@ -34,27 +33,6 @@ def read_kustomize_values(root_dir, project, env):
 
     return tag_val, chart_val
 
-def update_file(root_dir, project, env, type_, value):
-    """Aggiornamento puntuale tramite sidebar (legacy)"""
-    path = os.path.join(root_dir, f"{project}-kustomization", env)
-    target = os.path.join(path, "overlays" if type_ == 'image' else "base", "kustomization.yaml")
-    
-    if not os.path.exists(target): return False, f"File non trovato: {target}"
-    
-    try:
-        with open(target, 'r') as f: data = yaml.load(f)
-        
-        if type_ == 'image':
-            if 'images' in data: data['images'][0]['newTag'] = value
-        elif type_ == 'chart':
-            if 'helmCharts' in data: data['helmCharts'][0]['version'] = value
-            
-        with open(target, 'w') as f: yaml.dump(data, f)
-        return True, "Aggiornato!"
-    except Exception as e: return False, str(e)
-
-# --- NUOVE FUNZIONI (Editor Raw) ---
-
 def get_file_content(filepath):
     """Legge il contenuto testuale di un file."""
     if os.path.exists(filepath):
@@ -65,8 +43,7 @@ def get_file_content(filepath):
 def save_file_content(filepath, content):
     """Sovrascrive il file con il nuovo contenuto testuale."""
     try:
-        # FIX: Assicura che il file termini con una new line (Best Practice POSIX)
-        # Questo rimuove il fastidioso '%' alla fine dell'output del terminale
+        # FIX: Assicura che il file termini con una new line
         if content and not content.endswith('\n'):
             content += '\n'
             
@@ -79,7 +56,6 @@ def save_file_content(filepath, content):
 def get_chart_values_content(root_dir, project):
     """
     Cerca il values.yaml nel progetto chart.
-    Nome repo atteso: <project>-chart
     """
     chart_repo = f"{project}-chart"
     
@@ -94,3 +70,49 @@ def get_chart_values_content(root_dir, project):
         return get_file_content(path2), path2
 
     return None, f"File values.yaml non trovato in {chart_repo}"
+
+def generate_completions_from_yaml(yaml_content):
+    """
+    Analizza una stringa YAML e restituisce suggerimenti con contesto (parent path).
+    """
+    if not yaml_content:
+        return []
+
+    completions = []
+    
+    try:
+        data = yaml.load(yaml_content)
+    except:
+        return []
+
+    def extract_keys(obj, prefix=""):
+        # Calcola l'etichetta del genitore (es. "resources.limits" o "root")
+        parent_label = prefix.rstrip(".") if prefix else "root"
+        
+        if isinstance(obj, dict):
+            for key, value in obj.items():
+                
+                # Aggiunge il suggerimento
+                completions.append({
+                    "caption": key,              # Cosa vedi nel menu a sinistra (es. "cpu")
+                    "value": f"{key}: ",         # Cosa scrive quando premi Invio
+                    "meta": parent_label,        # 🌟 CONTESTO: Cosa vedi a destra
+                    "score": 1000 + len(prefix)  # Priorità
+                })
+                
+                # Ricorsione: passa il nuovo prefisso
+                extract_keys(value, prefix=f"{prefix}{key}.")
+        
+        # Gestione liste di oggetti
+        elif isinstance(obj, list) and len(obj) > 0 and isinstance(obj[0], dict):
+             extract_keys(obj[0], prefix)
+
+    extract_keys(data)
+    
+    # Rimuovi duplicati ESATTI
+    unique_map = {}
+    for c in completions:
+        unique_key = (c['caption'], c['meta'])
+        unique_map[unique_key] = c
+        
+    return list(unique_map.values())

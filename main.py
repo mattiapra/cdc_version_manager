@@ -13,7 +13,9 @@ from code_editor import code_editor
 st.set_page_config(page_title="CDC Matrix", layout="wide")
 
 # --- GESTIONE SALVATAGGIO CONFIGURAZIONE ---
-SETTINGS_FILE = "settings.json"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+SETTINGS_FILE = os.path.join(BASE_DIR, "settings.json")
+PROJECTS_FILE = os.path.join(BASE_DIR, "progetti.txt")
 
 def save_settings(path):
     try:
@@ -53,8 +55,7 @@ if 'root_dir' not in st.session_state:
         with col_setup:
             st.subheader("Dove si trovano i progetti?")
             path_input = st.text_input("Percorso Cartella Root", value="../cdc")
-            projects_file = os.path.join(os.path.dirname(__file__), "progetti.txt")
-            file_exists = os.path.exists(projects_file)
+            file_exists = os.path.exists(PROJECTS_FILE)
 
             c1, c2 = st.columns(2)
             if c1.button("📂 Usa Cartella Esistente", use_container_width=True):
@@ -68,7 +69,7 @@ if 'root_dir' not in st.session_state:
             btn_clone = c2.button("⬇️ Clona da progetti.txt", use_container_width=True, disabled=not file_exists)
             if btn_clone:
                 with st.spinner("⏳ Clonazione..."):
-                    ok, log = git_clone_from_file(path_input, projects_file)
+                    ok, log = git_clone_from_file(path_input, PROJECTS_FILE)
                     if ok:
                         st.success("Fatto!")
                         if os.path.exists(path_input):
@@ -111,28 +112,47 @@ if not df.empty:
         valid_envs = sorted(df[df['Progetto'] == sel_proj]['Ambiente'].unique())
         sel_env = st.sidebar.selectbox("Ambiente", valid_envs)
 
-# --- TABELLA ---
+# --- TABELLA (Logica Split & Merge Azure) ---
 if not df.empty:
-    df_display = df.copy()
-    # Raggruppa celle duplicate (TF + Kustomize)
-    df_grouped = df_display.groupby(['Progetto', 'Ambiente'], as_index=False).agg({'Info': lambda x: '\n\n'.join(x)})
     
-    mask_azure = df_grouped['Ambiente'].str.endswith('-az')
-    df_azure = df_grouped[mask_azure]
-    df_aws = df_grouped[~mask_azure]
+    # 1. Normalizziamo le stringhe
+    repo_series = df['RepoFolder'].astype(str).str.strip().str.lower()
+    env_series = df['Ambiente'].astype(str).str.strip().str.lower()
+    
+    # 2. Definisco chi va su Azure
+    is_az_repo = repo_series.str.endswith('-az') | repo_series.str.contains('-az-')
+    is_az_env = env_series.str.endswith('-az')
+    mask_azure = is_az_repo | is_az_env
+    
+    # 3. Split Dataframes
+    df_aws_raw = df[~mask_azure].copy()
+    df_azure_raw = df[mask_azure].copy()
 
-    def render_matrix(dataframe):
+    # 4. FIX AZURE: Normalizzazione nomi ambiente per raggruppamento
+    # Se l'ambiente finisce con "-az", lo togliamo, così "prod" e "prod-az" diventano entrambi "prod"
+    if not df_azure_raw.empty:
+        df_azure_raw['Ambiente'] = df_azure_raw['Ambiente'].apply(
+            lambda x: x[:-3] if str(x).strip().endswith('-az') else x
+        )
+
+    def render_matrix(dataframe, title):
         if dataframe.empty:
-            st.info("Nessun ambiente.")
+            st.info(f"Nessun progetto trovato per {title}.")
             return
-        matrix = dataframe.pivot(index="Progetto", columns="Ambiente", values="Info")
+            
+        # 5. Raggruppamento
+        df_grouped = dataframe.groupby(['Progetto', 'Ambiente'], as_index=False).agg({
+            'Info': lambda x: '\n\n'.join(x)
+        })
+        
+        matrix = df_grouped.pivot(index="Progetto", columns="Ambiente", values="Info")
         found = list(matrix.columns)
         current_order = [c for c in PRIORITY_ORDER if c in found] + sorted([c for c in found if c not in PRIORITY_ORDER])
         st.table(matrix.reindex(columns=current_order).fillna("-"))
 
     t1, t2 = st.tabs(["☁️ AWS", "🔷 Azure"])
-    with t1: render_matrix(df_aws)
-    with t2: render_matrix(df_azure)
+    with t1: render_matrix(df_aws_raw, "AWS")
+    with t2: render_matrix(df_azure_raw, "Azure")
 else:
     st.warning(f"Nessun dato in {ROOT_DIR}")
 
@@ -146,8 +166,8 @@ editor_options = {
     "showPrintMargin": False, 
     "wrap": True, 
     "tabSize": 2,
-    "enableBasicAutocompletion": True,  # <--- IMPORTANTE per autocomplete
-    "enableLiveAutocompletion": True,   # <--- IMPORTANTE per autocomplete
+    "enableBasicAutocompletion": True,
+    "enableLiveAutocompletion": True,
     "enableSnippets": True
 }
 
@@ -157,6 +177,8 @@ custom_buttons = [
 ]
 
 if sel_proj and sel_env:
+    # Nota: Qui usiamo il DF originale per il filtro, quindi nella sidebar 
+    # l'utente vedrà ancora il nome reale della cartella (es. "prod-az")
     rows = df[(df['Progetto'] == sel_proj) & (df['Ambiente'] == sel_env)]
     
     if rows.empty:
@@ -168,24 +190,22 @@ if sel_proj and sel_env:
             proj_type = row['Tipo']
             repo_folder = row['RepoFolder']
             
-            # --- PREPARAZIONE AUTOCOMPLETAMENTO ---
-            # Genera suggerimenti basati sul values.yaml di riferimento (se esiste)
+            # Autocomplete
             custom_completions = []
             if proj_type == "Kustomize":
                 ref_content, _ = get_chart_values_content(ROOT_DIR, sel_proj)
                 if ref_content:
                     custom_completions = generate_completions_from_yaml(ref_content)
             
-            # Contenitore per ogni repo
             with st.container():
                 st.markdown(f"#### 👉 {proj_type} (`{repo_folder}`)")
                 
-                # --- EDITOR ---
+                # EDITOR
                 if proj_type == "Terraform":
                     tf_path = row['FilePath']
                     res_tf = code_editor(
                         get_file_content(tf_path), 
-                        lang="terraform", # <--- Corretto per syntax highlighting
+                        lang="terraform", 
                         height="400px", 
                         theme="default", 
                         buttons=custom_buttons, 
@@ -195,7 +215,7 @@ if sel_proj and sel_env:
                     )
                     if res_tf['type'] == "submit" and res_tf['text']:
                         ok, msg = save_file_content(tf_path, res_tf['text'])
-                        if ok: st.success(msg); st.rerun()
+                        if ok: st.success(f"✅ TF: {msg}"); st.rerun()
                         else: st.error(msg)
 
                 elif proj_type == "Kustomize":
@@ -213,7 +233,7 @@ if sel_proj and sel_env:
                             buttons=custom_buttons, 
                             props=editor_props, 
                             options=editor_options,
-                            completions=custom_completions, # <--- Autocomplete Attivo
+                            completions=custom_completions,
                             key=f"ed_ov_{sel_proj}_{sel_env}_{idx}"
                         )
                         if res['type'] == "submit" and res['text']: save_file_content(path_overlay, res['text']); st.rerun()
@@ -226,7 +246,7 @@ if sel_proj and sel_env:
                             buttons=custom_buttons, 
                             props=editor_props, 
                             options=editor_options,
-                            completions=custom_completions, # <--- Autocomplete Attivo
+                            completions=custom_completions,
                             key=f"ed_ba_{sel_proj}_{sel_env}_{idx}"
                         )
                         if res['type'] == "submit" and res['text']: save_file_content(path_base, res['text']); st.rerun()
@@ -235,9 +255,8 @@ if sel_proj and sel_env:
                         if val_cont: 
                             code_editor(val_cont, lang="yaml", height="400px", theme="default", options={**editor_options, "readOnly":True}, buttons=[custom_buttons[1]], key=f"ed_ref_{sel_proj}_{idx}")
 
-                # --- SEZIONE GIT PUSH ---
+                # GIT SECTION
                 st.write("") 
-                
                 diff_text = get_git_diff(ROOT_DIR, repo_folder)
                 
                 if diff_text:
@@ -245,9 +264,8 @@ if sel_proj and sel_env:
                     with st.expander("🔍 Vedi Git Diff", expanded=False):
                         st.code(diff_text, language="diff")
                 else:
-                    st.success(f"✅ {repo_folder}: Working tree clean (nessuna modifica locale).")
+                    st.success(f"✅ {repo_folder}: Working tree clean.")
 
-                # EXPANDER SEMPRE VISIBILE E APERTO
                 with st.expander(f"🚀 Git Commit & Push ({repo_folder})", expanded=True):
                     c1, c2 = st.columns([4, 1])
                     msg = c1.text_input("Messaggio Commit", key=f"msg_{repo_folder}")
@@ -260,7 +278,6 @@ if sel_proj and sel_env:
                                 else: st.error(res)
                         else:
                             st.warning("Inserisci messaggio.")
-                
                 st.divider()
 
 else:

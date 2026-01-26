@@ -6,3 +6,6 @@ git@gitlab.aws.tagetik.com:tagetik/functional-area/cdc/cdc-main/cdc-main-config-
 git@gitlab.aws.tagetik.com:tagetik/functional-area/cdc/cdc-main/cdc-main-config-prod.git
 git@gitlab.aws.tagetik.com:tagetik/functional-area/cdc/cdc-monitoring/cdc-monitoring-config-dev.git
 git@gitlab.aws.tagetik.com:tagetik/functional-area/cdc/cdc-monitoring/cdc-monitoring-config-prod.git
+
+git@gitlab.aws.tagetik.com:tagetik/functional-area-az/cdc/cdc-main/cdc-main-config-dev.git as cdc-main-config-dev-az
+git@gitlab.aws.tagetik.com:tagetik/functional-area-az/cdc/cdc-main/cdc-main-config-prod.git as cdc-main-config-prod-az

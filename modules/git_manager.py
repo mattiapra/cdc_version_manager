@@ -3,6 +3,31 @@ import os
 import subprocess
 import streamlit as st
 
+def git_update_self(repo_path):
+    """
+    Esegue git pull sulla cartella dell'applicazione stessa.
+    """
+    if not os.path.exists(repo_path):
+        return False, "Cartella applicazione non trovata."
+        
+    try:
+        # Esegue il pull
+        result = subprocess.run(
+            ["git", "-C", repo_path, "pull"], 
+            capture_output=True, 
+            text=True, 
+            check=True
+        )
+        
+        output = result.stdout.strip()
+        if "Already up to date" in output:
+            return True, "L'app è già all'ultima versione."
+        else:
+            return True, f"Aggiornamento scaricato:\n{output}"
+            
+    except subprocess.CalledProcessError as e:
+        return False, f"Errore Update: {e.stderr.strip()}"
+
 def git_pull_all(root_dir):
     if not os.path.exists(root_dir): return
     repos = [f for f in os.listdir(root_dir) if os.path.isdir(os.path.join(root_dir, f))]

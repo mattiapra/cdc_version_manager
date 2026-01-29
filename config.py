@@ -7,3 +7,5 @@ PRIORITY_ORDER = [
     "systemdemo", "systemdemo-az", 
     "demohub"
 ]
+
+ECR_ROOT = "tgk-cdc/"

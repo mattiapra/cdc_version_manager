@@ -7,6 +7,7 @@ from config import PRIORITY_ORDER
 from modules.git_manager import git_pull_all, git_commit_push, get_git_diff, git_clone_from_file, git_update_self, git_hard_reset, git_clone_related_chart
 from modules.data_loader import load_data
 from modules.yaml_manager import get_file_content, save_file_content, get_chart_values_content, generate_completions_from_yaml
+from modules.ecr_manager import get_ecr_versions
 from modules.ui import inject_table_css
 from code_editor import code_editor
 
@@ -182,6 +183,26 @@ if not df.empty:
     t1, t2 = st.tabs(["☁️ AWS", "🔷 Azure"])
     with t1: render_t(df_aws, "AWS")
     with t2: render_t(df_az, "Azure")
+
+st.divider()
+
+if st.button(f"🔍 Recupera versioni da ECR per {sel_proj}"):
+    with st.spinner(f"Interrogando ECR per {sel_proj}..."):
+        data, error = get_ecr_versions(sel_proj)
+        
+        if error:
+            st.error(f"Errore nel recupero dati ECR: {error}")
+            st.info("Nota: Assicurati che il repository esista su ECR e che il profilo 'saml' sia attivo.")
+        else:
+            # Mostra i risultati in un expander per non occupare troppo spazio
+            repo_key = list(data.keys())[0]
+            st.success(f"Trovate {len(data[repo_key])} versioni valide per '{repo_key}'")
+            
+            # Visualizzazione a tabella o JSON annidato
+            with st.expander("Vedi elenco versioni (Ordinate per data)"):
+                st.table(data[repo_key])
+                # Se ti serve proprio il formato JSON annidato per debug:
+                # st.json(data)
 
 st.divider()
 ed_opts = {"showLineNumbers": True, "wrap": True, "enableBasicAutocompletion": True, "enableLiveAutocompletion": True}

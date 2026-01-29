@@ -2,3 +2,4 @@ streamlit
 streamlit-code-editor
 pandas
 ruamel.yaml
+boto3

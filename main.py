@@ -53,6 +53,7 @@ if 'root_dir' not in st.session_state:
         st.session_state['root_dir'] = root_dir_setting
     else:
         st.title("⚙️ Configurazione Iniziale")
+        st.code(f"""echo "alias cdc='(cd {BASE_DIR} && streamlit run main.py)'" >> ~/.profile && source ~/.profile""", language="bash")
         c1, c2 = st.columns([2, 1])
         with c1:
             path_input = st.text_input("Percorso Root", value="../cdc")

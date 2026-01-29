@@ -109,7 +109,10 @@ def git_update_self(repo_path):
         result = subprocess.run(["git", "-C", repo_path, "pull"], capture_output=True, text=True, check=True)
         output = result.stdout.strip()
         if "Already up to date" in output: return True, "L'app è già all'ultima versione."
-        else: return True, f"Aggiornamento scaricato:\n{output}"
+        else:
+            if os.path.exists(os.path.join(repo_path, "requirements.txt")):
+                subprocess.run(["pip", "install", "-r", "requirements.txt"], cwd=repo_path, check=True)
+            return True, f"Aggiornamento scaricato:\n{output}"
     except subprocess.CalledProcessError as e: return False, f"Errore Update: {e.stderr.strip()}"
 
 def get_repo_sync_status(repo_path):

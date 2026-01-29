@@ -103,7 +103,7 @@ def load_data(root_dir):
                     
                     info_text = ""
                     if val and val not in ["-", "N/A"]:
-                        info_text = f"{icon('📦')} {val}"
+                        info_text = f"{icon('🐬 ')}{val}"
                         
                     if git_badge: info_text += f"\n{git_badge}"
 

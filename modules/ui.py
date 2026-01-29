@@ -55,6 +55,8 @@ def inject_table_css():
             -webkit-user-select: none;
             cursor: default;
             margin-right: 4px;
+            padding: 2px 0;
+            display: inline-block;
         }}
 
         /* --- MAGIC CELL: ELLIPSIS + SCROLL --- */
@@ -94,6 +96,7 @@ def inject_table_css():
             background-color: {MAIN_BG} !important;
             z-index: 5;
             border-right: 2px solid {SECONDARY_BG};
+            vertical-align: middle;
         }}
 
         /* La prima colonna NON deve avere ellipsis, deve allargarsi sempre */

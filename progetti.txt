@@ -1,4 +1,6 @@
 git@gitlab.aws.tagetik.com:tagetik/platform/platform-charts-kustomizations/cdc/data-replication-adapter-kustomization.git
+FROM data-replication-adapter-kustomization IMPORT copytool-kustomization WITH copyTool.imageTag
+
 git@gitlab.aws.tagetik.com:tagetik/platform/platform-charts-kustomizations/cdc/tgk-qlik-replicate-kustomization.git
 git@gitlab.aws.tagetik.com:tagetik/platform/platform-charts-kustomizations/cdc/tgk-qlik-replicate-operator-kustomization.git
 git@gitlab.aws.tagetik.com:tagetik/platform/platform-charts-kustomizations/cdc/tgk-qlik-replicate-crd-kustomization.git

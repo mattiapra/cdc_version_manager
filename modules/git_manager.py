@@ -143,7 +143,7 @@ def git_clone_from_file(destination_dir, projects_file_path):
     with open(projects_file_path, 'r') as f:
         lines = [line.strip() for line in f if line.strip() and not line.startswith("#")]
     log_msgs = []
-    config_path = os.path.join(destination_dir, "repo_config.json")
+    config_path = os.path.join(".cdc_config", "repo_config.json")
     repo_config = {"virtual": []}
     if os.path.exists(config_path):
         try:

@@ -13,7 +13,7 @@ from code_editor import code_editor
 st.set_page_config(page_title="CDC Matrix", layout="wide")
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-SETTINGS_FILE = os.path.join(BASE_DIR, "settings.json")
+SETTINGS_FILE = os.path.join(BASE_DIR, ".cdc_config", "settings.json")
 PROJECTS_FILE = os.path.join(BASE_DIR, "progetti.txt")
 
 def update_settings(new_data):
@@ -28,6 +28,10 @@ def update_settings(new_data):
     except Exception as e: print(f"Errore settings: {e}")
 
 def load_settings():
+    conf_dir = os.path.join(BASE_DIR, ".cdc_config")
+    if not os.path.exists(conf_dir):
+        os.makedirs(conf_dir, exist_ok=True)
+
     if os.path.exists(SETTINGS_FILE):
         try:
             with open(SETTINGS_FILE, 'r') as f: return json.load(f)

@@ -10,7 +10,7 @@ def load_data(root_dir):
     if not os.path.exists(root_dir): return pd.DataFrame()
 
     virtual_projects = []
-    config_path = os.path.join(root_dir, "repo_config.json")
+    config_path = os.path.join(".cdc_config", "repo_config.json")
     if os.path.exists(config_path):
         try:
             with open(config_path, 'r') as f:

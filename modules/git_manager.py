@@ -5,34 +5,66 @@ import json
 import re
 from concurrent.futures import ThreadPoolExecutor
 
+def check_app_updates(repo_path):
+    """
+    Controlla se l'applicazione ha aggiornamenti disponibili sul remote.
+    Esegue git fetch e conta i commit 'behind'.
+    """
+    if not os.path.exists(repo_path): return False
+    try:
+        # 1. Aggiorna le referenze remote senza unire (safe)
+        subprocess.run(["git", "-C", repo_path, "fetch"], check=True, capture_output=True, timeout=10)
+        
+        # 2. Conta quanti commit siamo indietro rispetto a origin (HEAD..@{u})
+        res = subprocess.run(
+            ["git", "-C", repo_path, "rev-list", "--count", "HEAD..@{u}"],
+            capture_output=True, text=True
+        )
+        
+        if res.returncode == 0 and res.stdout.strip().isdigit():
+            count = int(res.stdout.strip())
+            return count > 0
+            
+    except Exception:
+        pass
+    return False
+
 def _pull_single_repo(repo_full_path):
     """Funzione helper per il pull parallelo"""
+    repo_name = os.path.basename(repo_full_path)
     try:
-        # Timeout breve per non bloccare tutto se un repo è irraggiungibile
-        subprocess.run(
+        # Timeout breve per non bloccare tutto
+        res = subprocess.run(
             ["git", "-C", repo_full_path, "pull"], 
             capture_output=True, 
             timeout=15, 
             check=False
         )
-        return True
+        # Consideriamo successo solo se returncode è 0
+        return repo_name, (res.returncode == 0)
     except: 
-        return False
+        return repo_name, False
 
 def git_pull_all(root_dir):
     """
-    Esegue git pull su tutte le sottocartelle in PARALLELO.
-    Molto più veloce dell'approccio sequenziale.
+    Esegue git pull su tutte le sottocartelle in PARALLELO e restituisce lo stato.
+    Returns: dict {repo_name: success_bool}
     """
-    if not os.path.exists(root_dir): return
+    results = {}
+    if not os.path.exists(root_dir): return results
     
     repos = [os.path.join(root_dir, f) for f in os.listdir(root_dir) if os.path.isdir(os.path.join(root_dir, f))]
-    if not repos: return
+    if not repos: return results
 
-    # Usa 10 thread per fare pull contemporaneamente
     with ThreadPoolExecutor(max_workers=10) as executor:
-        list(executor.map(_pull_single_repo, repos))
-
+        # Mappa la funzione e raccogli i risultati
+        pull_results = list(executor.map(_pull_single_repo, repos))
+        
+    for name, success in pull_results:
+        results[name] = success
+        
+    return results
+    
 def git_clone_related_chart(root_dir, project_name, source_repo_folder):
     """
     Cerca di indovinare l'URL del repo Chart basandosi sul repo corrente e lo clona.

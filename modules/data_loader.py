@@ -33,10 +33,9 @@ def load_data(root_dir):
         folder_path = os.path.join(root_dir, folder)
         if not os.path.isdir(folder_path): continue
 
+        # --- MODIFICA 1: Calcoliamo solo il booleano, NON creiamo la stringa badge ---
         is_dirty, is_ahead = get_cached_status(folder_path)
-        git_badge = ""
-        if is_dirty: git_badge += f" {icon('✏️')}"
-        if is_ahead: git_badge += f" {icon('⬆️')}"
+        has_changes = is_dirty or is_ahead
 
         if folder.endswith("-kustomization"):
             proj = folder.replace("-kustomization", "")
@@ -45,19 +44,18 @@ def load_data(root_dir):
                     tag, chart = read_kustomize_values(root_dir, proj, env)
                     info_text = ""
                     
-                    # --- CHECK PIÙ RIGOROSI: Se nullo o trattino, ignora ---
                     if tag and tag not in ["-", "N/A"]: 
                         info_text += f"{icon('🐬 ')}{tag}\n"
                     
                     if chart and chart not in ["-", "N/A"]: 
                         info_text += f"{icon('☸️ ')}{chart}"
                     
-                    if git_badge: info_text += f"\n{git_badge}"
+                    # --- MODIFICA 2: NON aggiungiamo più git_badge a info_text ---
                     
-                    # Aggiunge riga anche se info_text è vuoto (così esiste, ma è blank)
                     rows.append({
                         "Progetto": proj, "Ambiente": env, "Tipo": "Kustomize",
-                        "Info": info_text.strip(), "RepoFolder": folder, "FilePath": None
+                        "Info": info_text.strip(), "RepoFolder": folder, "FilePath": None,
+                        "IsChange": has_changes # Nuova colonna dati
                     })
 
         elif "-config-" in folder:
@@ -73,12 +71,13 @@ def load_data(root_dir):
                         
                         if tf_ver and tf_ver not in ["-", "N/A"]:
                             info_text = f"{icon('🏗️ TF: ')}{tf_ver}"
-                            
-                        if git_badge: info_text += f"\n{git_badge}"
+                        
+                        # --- ANCHE QUI: Niente badge nel testo ---
                         
                         rows.append({
                             "Progetto": proj, "Ambiente": env, "Tipo": "Terraform",
-                            "Info": info_text.strip(), "RepoFolder": folder, "FilePath": main_tf_path
+                            "Info": info_text.strip(), "RepoFolder": folder, "FilePath": main_tf_path,
+                            "IsChange": has_changes
                         })
 
     for vp in virtual_projects:
@@ -90,9 +89,7 @@ def load_data(root_dir):
         source_abs_path = os.path.join(root_dir, source_folder)
         
         is_dirty, is_ahead = get_cached_status(source_abs_path)
-        git_badge = ""
-        if is_dirty: git_badge += f" {icon('✏️')}"
-        if is_ahead: git_badge += f" {icon('⬆️')}"
+        has_changes = is_dirty or is_ahead
 
         if os.path.exists(source_abs_path):
             for env in sorted(os.listdir(source_abs_path)):
@@ -104,12 +101,11 @@ def load_data(root_dir):
                     info_text = ""
                     if val and val not in ["-", "N/A"]:
                         info_text = f"{icon('🐬 ')}{val}"
-                        
-                    if git_badge: info_text += f"\n{git_badge}"
 
                     rows.append({
                         "Progetto": proj_display, "Ambiente": env, "Tipo": "Kustomize",
-                        "Info": info_text.strip(), "RepoFolder": source_folder, "FilePath": None
+                        "Info": info_text.strip(), "RepoFolder": source_folder, "FilePath": None,
+                        "IsChange": has_changes
                     })
 
     return pd.DataFrame(rows)

@@ -5,6 +5,14 @@ yaml = YAML()
 yaml.preserve_quotes = True
 yaml.indent(mapping=2, sequence=4, offset=2)
 
+def is_valid_yaml(content):
+    """Verifica se la stringa è un YAML valido."""
+    try:
+        yaml.load(content)
+        return True, ""
+    except Exception as e:
+        return False, str(e)
+
 def traverse_dot_path(data, dot_path):
     """
     Funzione helper che naviga un dizionario usando la notazione 'a.b.c'.

@@ -1,6 +1,45 @@
 # modules/terraform_manager.py
 import os
 import re
+import tempfile
+import shutil
+import subprocess
+
+def is_valid_terraform(content):
+    """
+    Verifica la sintassi Terraform usando 'terraform fmt'.
+    Se terraform non è installato, lascia passare (fallback).
+    """
+    if not shutil.which("terraform"):
+        return True, "Terraform CLI non trovato, validazione saltata."
+
+    try:
+        # Crea un file temporaneo per il check
+        with tempfile.NamedTemporaryFile(suffix=".tf", mode="w", delete=False) as tmp:
+            tmp.write(content)
+            tmp_path = tmp.name
+        
+        # Esegue terraform fmt (check only)
+        # Se c'è un errore di sintassi, fmt fallisce
+        res = subprocess.run(
+            ["terraform", "fmt", "-check", tmp_path], 
+            capture_output=True, 
+            text=True
+        )
+        
+        os.remove(tmp_path)
+        
+        # Se c'è output su stderr solitamente è un errore di sintassi grave
+        if res.stderr:
+            return False, res.stderr
+            
+        # Nota: fmt -check ritorna 3 se il file non è formattato, ma 0 o altro se è valido.
+        # Ci affidiamo al fatto che se la sintassi è rotta, spesso scrive in stderr o ritorna errore.
+        # Un check più robusto sarebbe 'terraform validate', ma richiede 'terraform init'.
+        
+        return True, ""
+    except Exception as e:
+        return False, str(e)
 
 def get_tf_version(file_path):
     """

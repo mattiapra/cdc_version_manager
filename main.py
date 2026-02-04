@@ -6,12 +6,13 @@ import time
 from config import PRIORITY_ORDER
 from modules.git_manager import git_pull_all, git_commit_push, get_git_diff, git_clone_from_file, git_update_self, git_hard_reset, git_clone_related_chart
 from modules.data_loader import load_data
-from modules.yaml_manager import get_file_content, save_file_content, get_chart_values_content, generate_completions_from_yaml
+from modules.yaml_manager import get_file_content, save_file_content, get_chart_values_content, generate_completions_from_yaml, is_valid_yaml
+from modules.terraform_manager import is_valid_terraform
 from modules.ecr_manager import get_ecr_versions
 from modules.ui import inject_table_css
 from code_editor import code_editor
 
-st.set_page_config(page_title="CDC Matrix", layout="wide")
+st.set_page_config(page_title="CDC Version Manager", layout="wide")
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 SETTINGS_FILE = os.path.join(BASE_DIR, ".cdc_config", "settings.json")
@@ -160,7 +161,16 @@ if not df.empty:
     def render_t(d, t):
         if d.empty: st.info(f"No data for {t}"); return
         
-        # --- FIX: Filtra valori vuoti prima del join ---
+        # Recupera mappa dei repo falliti
+        pull_status = st.session_state.get('pull_status', {})
+        failed_repos = [r for r, ok in pull_status.items() if not ok]
+        
+        # Identifica quali progetti hanno repo falliti
+        # Mappa Progetto -> RepoFolder dal dataframe
+        proj_with_errors = []
+        if not d.empty and 'RepoFolder' in d.columns:
+            proj_with_errors = d[d['RepoFolder'].isin(failed_repos)]['Progetto'].unique()
+
         g = d.groupby(['Progetto', 'Ambiente'], as_index=False).agg({
             'Info': lambda x: '<div class="inner-cell">' + 
                               '<br>'.join([str(val).replace('\n', '<br>') for val in x if str(val).strip() != ""]) + 
@@ -171,12 +181,18 @@ if not df.empty:
         m.columns.name = None 
         
         cols = [c for c in PRIORITY_ORDER if c in m.columns] + sorted([c for c in m.columns if c not in PRIORITY_ORDER])
-        
-        # --- FIX: Sostituisci i buchi con stringa vuota invece di "-" ---
         m = m.reindex(columns=cols).fillna("") 
         
         m_reset = m.reset_index()
-        m_reset["Progetto"] = m_reset["Progetto"].apply(lambda x: f'<div class="inner-cell" style="font-weight:bold;">{x}</div>')
+        
+        # Modifica la lambda per aggiungere l'icona se il progetto è nella lista errori
+        def format_project(name):
+            icon_html = ""
+            if name in proj_with_errors:
+                icon_html = '<span style="color:orange; cursor:help;" title="Git pull fallito. Modifiche locali non committate? Fai reset da Gestione Git.">⚠️</span> '
+            return f'<div class="inner-cell" style="font-weight:bold;">{icon_html}{name}</div>'
+
+        m_reset["Progetto"] = m_reset["Progetto"].apply(format_project)
         
         html_table = m_reset.to_html(classes="cdc-table", index=False, escape=False, border=0)
         st.markdown(f'<div class="cdc-table-container">{html_table}</div>', unsafe_allow_html=True)
@@ -232,8 +248,13 @@ if sel_proj and target_real_envs:
                     tf_p = row['FilePath']
                     res = code_editor(get_file_content(tf_p), lang="terraform", height="300px", buttons=btns, options=ed_opts, key=f"tf_{idx}")
                     if res['type'] == "submit" and res['text']:
-                        save_file_content(tf_p, res['text'])
-                        st.toast("✅ Salvato!", icon="💾")
+                        # VALIDAZIONE TERRAFORM
+                        is_valid, err_msg = is_valid_terraform(res['text'])
+                        if is_valid:
+                            save_file_content(tf_p, res['text'])
+                            st.toast("✅ Salvato!", icon="💾")
+                        else:
+                            st.error(f"❌ Errore Sintassi Terraform: {err_msg}")
                 elif ptype == "Kustomize":
                     base_f = os.path.join(ROOT_DIR, rfolder, renv)
                     p_ov = os.path.join(base_f, "overlays", "kustomization.yaml")
@@ -241,10 +262,25 @@ if sel_proj and target_real_envs:
                     tb1, tb2, tb3 = st.tabs(["Overlay", "Base", "Chart Values"])
                     with tb1:
                         r = code_editor(get_file_content(p_ov), lang="yaml", height="300px", buttons=btns, options=ed_opts, completions=comps, key=f"ov_{idx}")
-                        if r['type'] == "submit" and r['text']: save_file_content(p_ov, r['text']); st.toast("✅ Overlay Salvato!", icon="💾")
+                        if r['type'] == "submit" and r['text']: 
+                            # VALIDAZIONE YAML
+                            is_valid, err_msg = is_valid_yaml(r['text'])
+                            if is_valid:
+                                save_file_content(p_ov, r['text'])
+                                st.toast("✅ Overlay Salvato!", icon="💾")
+                            else:
+                                st.error(f"❌ Errore YAML: {err_msg}")
+                                
                     with tb2:
                         r = code_editor(get_file_content(p_ba), lang="yaml", height="300px", buttons=btns, options=ed_opts, completions=comps, key=f"ba_{idx}")
-                        if r['type'] == "submit" and r['text']: save_file_content(p_ba, r['text']); st.toast("✅ Base Salvato!", icon="💾")
+                        if r['type'] == "submit" and r['text']: 
+                            # VALIDAZIONE YAML
+                            is_valid, err_msg = is_valid_yaml(r['text'])
+                            if is_valid:
+                                save_file_content(p_ba, r['text'])
+                                st.toast("✅ Base Salvato!", icon="💾")
+                            else:
+                                st.error(f"❌ Errore YAML: {err_msg}")
                     with tb3:
                          if ref_c:
                              code_editor(ref_c, lang="yaml", height="300px", options={**ed_opts, "readOnly":True}, key=f"ref_{idx}")
